@@ -1,0 +1,53 @@
+# =====================================================================
+# IKF-Liste: Wachhalter
+# Pingt zweimal pro Woche die Supabase-Datenbank an, damit das
+# Gratis-Projekt nicht wegen Inaktivität pausiert wird, und schreibt
+# einen Zeitstempel ins Repository, damit auch dieser Zeitplan selbst
+# von GitHub nicht wegen Inaktivität deaktiviert wird.
+#
+# Ablageort im Repository (Dateiname exakt so):
+#   .github/workflows/wachhalter.yml
+#
+# Benötigt zwei Repository-Secrets (Settings -> Secrets and variables
+# -> Actions -> "New repository secret"):
+#   SUPABASE_URL  = https://btoqvpoimnepnxxanlet.supabase.co
+#   SUPABASE_KEY  = (dein sb_publishable_...-Key)
+# =====================================================================
+
+name: Wachhalter
+
+on:
+  schedule:
+    - cron: "17 5 * * 1,4"   # jeden Montag und Donnerstag um 05:17 UTC (6:17/7:17 Uhr in Österreich)
+  workflow_dispatch:          # erlaubt zusätzlich manuelles Starten zum Testen
+
+permissions:
+  contents: write             # darf den Zeitstempel ins Repository schreiben
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Repository laden
+        uses: actions/checkout@v4
+
+      - name: Supabase-Datenbank anpingen
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/ikf_daten?select=id&limit=1")
+          echo "HTTP-Status: $STATUS"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::Ping fehlgeschlagen (Status $STATUS) – Projekt pausiert oder Zugangsdaten falsch?"
+            exit 1
+          fi
+
+      - name: Zeitstempel schreiben (haelt den Zeitplan aktiv)
+        run: |
+          echo "Zuletzt geprueft: $(date -u '+%d.%m.%Y %H:%M UTC') – Supabase erreichbar." > wachhalter.log
+          git config user.name "Wachhalter"
+          git config user.email "actions@users.noreply.github.com"
+          git add wachhalter.log
+          git commit -m "Wachhalter-Ping" || exit 0
+          git push

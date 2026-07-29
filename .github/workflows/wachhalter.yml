@@ -31,14 +31,17 @@ jobs:
       - name: Repository laden
         uses: actions/checkout@v5
 
-      - name: Supabase-Datenbank anpingen
+    - name: Supabase-Datenbank anpingen
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
             -H "apikey: ${{ secrets.SUPABASE_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_KEY }}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/ikf_daten?select=id&limit=1")
+            -H "Content-Type: application/json" \
+            -H "Prefer: resolution=merge-duplicates" \
+            -d "{\"id\":\"wachhalter\",\"inhalt\":\"ping $(date -u '+%Y-%m-%d %H:%M')\"}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/ikf_daten")
           echo "HTTP-Status: $STATUS"
-          if [ "$STATUS" != "200" ]; then
+          if [ "$STATUS" != "201" ] && [ "$STATUS" != "200" ]; then
             echo "::error::Ping fehlgeschlagen (Status $STATUS) – Projekt pausiert oder Zugangsdaten falsch?"
             exit 1
           fi
